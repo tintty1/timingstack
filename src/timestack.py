@@ -2,13 +2,15 @@ import time
 import asyncio
 import logging
 from contextvars import ContextVar
-from typing import Optional, List
+from typing import Optional, List, Any, Dict, Callable, TypeVar, cast
 from functools import wraps
 from dataclasses import dataclass, field
 from enum import Enum
 
 
 logger = logging.getLogger("timestack")
+
+F = TypeVar("F", bound=Callable[..., Any])
 
 
 class ErrorHandling(Enum):
@@ -44,25 +46,25 @@ class TimerContext:
     children: List["TimerContext"] = field(default_factory=list)
 
     @property
-    def duration(self):
+    def duration(self) -> Optional[float]:
         """Total duration including children's durations"""
         if self.end_time is None:
             return None
         return self.end_time - self.start_time
 
     @property
-    def self_duration(self):
+    def self_duration(self) -> Optional[float]:
         """Duration of self, excluding children"""
         if self.duration is None:
             return None
         children_duration = sum(c.duration or 0 for c in self.children)
         return self.duration - children_duration
 
-    def is_complete(self):
+    def is_complete(self) -> bool:
         """Check if timer is complete"""
         return self.end_time is not None
 
-    def to_dict(self):
+    def to_dict(self) -> Dict[str, Any]:
         """Convert to dict"""
         return {
             "name": self.name,
@@ -80,11 +82,11 @@ class TimerStack:
     def __init__(self):
         # TODO: should use some kind of bounded list here, deque, maybe?
         # a list to track the root timers
-        self.root_timers = []
+        self.root_timers: List[TimerContext] = []
         # list of childs, nested inside root timer
-        self.active_stack = []
+        self.active_stack: List[TimerContext] = []
 
-    def start(self, name):
+    def start(self, name: str) -> TimerContext:
         """Start a new timer."""
         ctx = TimerContext(name=name, start_time=time.perf_counter())
 
@@ -100,7 +102,7 @@ class TimerStack:
         self.active_stack.append(ctx)
         return ctx
 
-    def end(self, name=None):
+    def end(self, name: Optional[str] = None) -> Optional[TimerContext]:
         """
         End a timer
 
@@ -148,7 +150,7 @@ class TimerStack:
         )
         return None
 
-    def close_all(self):
+    def close_all(self) -> None:
         """Close all active timers"""
         current_time = time.perf_counter()
         for ctx in reversed(self.active_stack):
@@ -160,28 +162,28 @@ class TimerStack:
                     )
         self.active_stack.clear()
 
-    def reset(self):
+    def reset(self) -> None:
         self.root_timers.clear()
         self.active_stack.clear()
 
-    def _handle_error(self, message):
+    def _handle_error(self, message: str) -> None:
         if _config.on_mismatch == ErrorHandling.WARN:
             logger.warning(message)
         elif _config.on_mismatch == ErrorHandling.RAISE:
             raise ValueError(message)
         # else: pass
 
-    def get_stats(self):
+    def get_stats(self) -> List[Dict[str, Any]]:
         """Export timing data as a dict"""
         return [root.to_dict() for root in self.root_timers]
 
-    def print_report(self):
+    def print_report(self) -> None:
         """Print formatted timing report"""
         print("\n" + "=" * 50)
         print("TIMING REPORT")
         print("=" * 50)
 
-        def _convert_duration(duration):
+        def _convert_duration(duration: float) -> float:
             if _config.time_unit == "seconds":
                 return duration
             elif _config.time_unit == "milliseconds":
@@ -191,7 +193,7 @@ class TimerStack:
             else:
                 return duration * 1000  # default to milliseconds
 
-        def _get_unit_suffix():
+        def _get_unit_suffix() -> str:
             if _config.time_unit == "seconds":
                 return "s"
             elif _config.time_unit == "milliseconds":
@@ -201,7 +203,7 @@ class TimerStack:
             else:
                 return "ms"
 
-        def _print_timer(timer, indent=0):
+        def _print_timer(timer: Dict[str, Any], indent: int = 0) -> None:
             prefix = "  " * indent
             duration = _convert_duration(timer.get("duration", 0) or 0)
             self_duration = _convert_duration(timer.get("self_duration", 0) or 0)
@@ -221,13 +223,13 @@ class TimerStack:
         print("=" * 50)
 
 
-_timer_stack = ContextVar("timer_stack", default=None)
+_timer_stack: ContextVar[Optional[TimerStack]] = ContextVar("timer_stack", default=None)
 
 
 # TODO: verify if this is thread safe
 
 
-def _get_stack():
+def _get_stack() -> TimerStack:
     """Get or create timer stack for current context"""
     stack = _timer_stack.get()
     if stack is None:
@@ -265,7 +267,7 @@ class Timer:
         Timer.end("task")
     """
 
-    def __init__(self, name=None):
+    def __init__(self, name: Optional[str] = None):
         """
         Init timer
 
@@ -273,25 +275,29 @@ class Timer:
             name: Timer name. If None and used as decorator, uses function name.
         """
         self.name = name
-        self._ctx = None
+        self._ctx: Optional[TimerContext] = None
 
-    def __enter__(self):
+    def __enter__(self) -> "Timer":
+        if self.name is None:
+            raise RuntimeError("`name` must be set")
         self._ctx = Timer.start(self.name)
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> bool:
         Timer.end(self.name)
         return False
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> "Timer":
+        if self.name is None:
+            raise RuntimeError("`name` must be set")
         self._ctx = Timer.start(self.name)
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> bool:
         Timer.end(self.name)
         return False
 
-    def __call__(self, func):
+    def __call__(self, func: F) -> F:
         """Decorator usage, supports both sync and async functions."""
         name = self.name or func.__name__
 
@@ -299,22 +305,22 @@ class Timer:
         if asyncio.iscoroutinefunction(func):
 
             @wraps(func)
-            async def async_wrapper(*args, **kwargs):
+            async def async_wrapper(*args: Any, **kwargs: Any) -> Any:
                 async with Timer(name):
                     return await func(*args, **kwargs)
 
-            return async_wrapper
+            return cast(F, async_wrapper)
         else:
 
             @wraps(func)
-            def sync_wrapper(*args, **kwargs):
+            def sync_wrapper(*args: Any, **kwargs: Any) -> Any:
                 with Timer(name):
                     return func(*args, **kwargs)
 
-            return sync_wrapper
+            return cast(F, sync_wrapper)
 
     @staticmethod
-    def start(name):
+    def start(name: str) -> TimerContext:
         """
         Start a timer manually.
 
@@ -328,7 +334,7 @@ class Timer:
         return stack.start(name)
 
     @staticmethod
-    def end(name=None):
+    def end(name: Optional[str] = None) -> Optional[TimerContext]:
         """
         End a timer manually
 
@@ -342,19 +348,19 @@ class Timer:
         return stack.end(name)
 
     @staticmethod
-    def reset():
+    def reset() -> None:
         """Reset all timing data in current context."""
         stack = _get_stack()
         stack.reset()
 
     @staticmethod
-    def print_report():
+    def print_report() -> None:
         """Print formatted report for current context."""
         stack = _get_stack()
         stack.print_report()
 
     @staticmethod
-    def measure(func):
+    def measure(func: F) -> F:
         """
         Decorator to measure function execution time
 
