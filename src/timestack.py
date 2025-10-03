@@ -80,17 +80,17 @@ class TimerStack:
     """Manage the stack of active timers"""
 
     def __init__(self):
-        # TODO: should use some kind of bounded list here, deque, maybe?
+        # Use bounded list to minimize memory allocations
         # a list to track the root timers
-        self.root_timers: List[TimerContext] = []
-        # list of childs, nested inside root timer
-        self.active_stack: List[TimerContext] = []
+        self.root_timers: BoundedList = BoundedList()
+        # bounded list for active timers, nested inside root timer
+        self.active_stack: BoundedList = BoundedList()
 
     def start(self, name: str) -> TimerContext:
         """Start a new timer."""
         ctx = TimerContext(name=name, start_time=time.perf_counter())
 
-        if self.active_stack:
+        if len(self.active_stack) > 0:
             # not root timer
             parent = self.active_stack[-1]
             ctx.parent = parent
@@ -112,7 +112,7 @@ class TimerStack:
         Returns:
             The ended TimerContext, or None if no match found.
         """
-        if not self.active_stack:
+        if len(self.active_stack) == 0:
             self._handle_error(f"Timer.end('{name}') called but no active timers.")
             return None
 
@@ -123,23 +123,23 @@ class TimerStack:
             return ctx
 
         # find matching timer
-        # TODO: check this
         for i in range(len(self.active_stack) - 1, -1, -1):
             if self.active_stack[i].name == name:
-                ctx = self.active_stack.pop(i)
+                ctx = self.active_stack.pop_at_index(i)
                 ctx.end_time = time.perf_counter()
 
                 # close any nested orphaned timers
                 if i < len(self.active_stack):
-                    # import pdb; pdb.set_trace()
-                    orphaned = self.active_stack[i:]
-                    self.active_stack = self.active_stack[:i]
-                    for orphan in orphaned:
+                    # Get orphaned timers without creating new lists
+                    for j in range(i, len(self.active_stack)):
+                        orphan = self.active_stack[j]
                         if not orphan.is_complete():
                             orphan.end_time = time.perf_counter()
                             logger.warning(
                                 f"Timer '{orphan.name}' was automatically closed bcs parent '{name}' has ended."
                             )
+                    # Truncate to remove orphaned timers
+                    self.active_stack.truncate(i)
 
                 return ctx
 
@@ -153,7 +153,9 @@ class TimerStack:
     def close_all(self) -> None:
         """Close all active timers"""
         current_time = time.perf_counter()
-        for ctx in reversed(self.active_stack):
+        # Iterate backwards without creating new list
+        for i in range(len(self.active_stack) - 1, -1, -1):
+            ctx = self.active_stack[i]
             if not ctx.is_complete():
                 ctx.end_time = current_time
                 if _config.warn_unclosed:
@@ -175,7 +177,7 @@ class TimerStack:
 
     def get_stats(self) -> List[Dict[str, Any]]:
         """Export timing data as a dict"""
-        return [root.to_dict() for root in self.root_timers]
+        return [root.to_dict() for root in self.root_timers.items()]
 
     def print_report(self) -> None:
         """Print formatted timing report"""
@@ -221,6 +223,41 @@ class TimerStack:
             _print_timer(root)
 
         print("=" * 50)
+
+
+class BoundedList:
+    """A wrapper for list to use in TimerStack"""
+
+    def __init__(self):
+        self._data: List[TimerContext] = []
+
+    def append(self, item: TimerContext) -> None:
+        self._data.append(item)
+
+    def pop(self) -> TimerContext:
+        return self._data.pop()
+
+    def pop_at_index(self, index: int) -> TimerContext:
+        return self._data.pop(index)
+
+    def truncate(self, new_size: int) -> None:
+        if new_size < len(self._data):
+            del self._data[new_size:]
+
+    def __len__(self) -> int:
+        return len(self._data)
+
+    def __getitem__(self, index: int) -> TimerContext:
+        return self._data[index]
+
+    def __iter__(self):
+        return iter(self._data)
+
+    def clear(self) -> None:
+        self._data.clear()
+
+    def items(self) -> List[TimerContext]:
+        return self._data
 
 
 _timer_stack: ContextVar[Optional[TimerStack]] = ContextVar("timer_stack", default=None)
