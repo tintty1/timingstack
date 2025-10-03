@@ -6,6 +6,7 @@ from typing import Optional, List, Any, Dict, Callable, TypeVar, cast
 from functools import wraps
 from dataclasses import dataclass, field
 from enum import Enum
+import threading
 
 
 logger = logging.getLogger("timestack")
@@ -30,11 +31,61 @@ class TimerConfig:
     precision: int = 2
     logger_name: str = "timestack"
     log_level: str = "WARNING"
+    max_length: int = 1000
 
 
-_config = TimerConfig()
+_config: Optional[TimerConfig] = None
+_config_lock = threading.RLock()
 
-# TODO: add util function to configure the timer??
+
+def get_config() -> TimerConfig:
+    """
+    Get the global timer configuration.
+
+    Returns:
+        TimerConfig: The current global configuration
+    """
+    global _config
+    if _config is None:
+        with _config_lock:
+            if _config is None:
+                _config = TimerConfig()
+    return _config
+
+
+def configure(**kwargs) -> None:
+    """
+    Configure the global timer settings.
+
+    Args:
+        **kwargs: Configuration options to update. Valid keys are:
+            - on_mismatch: ErrorHandling enum value
+            - warn_unclosed: bool
+            - auto_close_unclosed: bool
+            - time_unit: str ("seconds", "milliseconds", "microseconds")
+            - precision: int
+            - logger_name: str
+            - log_level: str
+            - max_length: int (maximum number of items in bounded lists)
+    """
+    global _config
+    with _config_lock:
+        if _config is None:
+            _config = TimerConfig()
+
+        new_config = TimerConfig(
+            on_mismatch=kwargs.get("on_mismatch", _config.on_mismatch),
+            warn_unclosed=kwargs.get("warn_unclosed", _config.warn_unclosed),
+            auto_close_unclosed=kwargs.get(
+                "auto_close_unclosed", _config.auto_close_unclosed
+            ),
+            time_unit=kwargs.get("time_unit", _config.time_unit),
+            precision=kwargs.get("precision", _config.precision),
+            logger_name=kwargs.get("logger_name", _config.logger_name),
+            log_level=kwargs.get("log_level", _config.log_level),
+            max_length=kwargs.get("max_length", _config.max_length),
+        )
+        _config = new_config
 
 
 @dataclass
@@ -80,15 +131,19 @@ class TimerStack:
     """Manage the stack of active timers"""
 
     def __init__(self):
-        # Use bounded list to minimize memory allocations
-        # a list to track the root timers
+        # Use bounded list for root timers to prevent memory leaks
         self.root_timers: BoundedList = BoundedList()
-        # bounded list for active timers, nested inside root timer
-        self.active_stack: BoundedList = BoundedList()
+        # Use regular list for active stack to preserve timer hierarchy
+        self.active_stack: List[TimerContext] = []
+        # Track timer call counts by name
+        self.timer_counts: Dict[str, int] = {}
 
     def start(self, name: str) -> TimerContext:
         """Start a new timer."""
         ctx = TimerContext(name=name, start_time=time.perf_counter())
+
+        # Track timer call count
+        self.timer_counts[name] = self.timer_counts.get(name, 0) + 1
 
         if len(self.active_stack) > 0:
             # not root timer
@@ -125,12 +180,12 @@ class TimerStack:
         # find matching timer
         for i in range(len(self.active_stack) - 1, -1, -1):
             if self.active_stack[i].name == name:
-                ctx = self.active_stack.pop_at_index(i)
+                ctx = self.active_stack.pop(i)
                 ctx.end_time = time.perf_counter()
 
                 # close any nested orphaned timers
                 if i < len(self.active_stack):
-                    # Get orphaned timers without creating new lists
+                    # Get orphaned timers and close them
                     for j in range(i, len(self.active_stack)):
                         orphan = self.active_stack[j]
                         if not orphan.is_complete():
@@ -138,8 +193,8 @@ class TimerStack:
                             logger.warning(
                                 f"Timer '{orphan.name}' was automatically closed bcs parent '{name}' has ended."
                             )
-                    # Truncate to remove orphaned timers
-                    self.active_stack.truncate(i)
+                    # Remove orphaned timers
+                    del self.active_stack[i:]
 
                 return ctx
 
@@ -158,7 +213,7 @@ class TimerStack:
             ctx = self.active_stack[i]
             if not ctx.is_complete():
                 ctx.end_time = current_time
-                if _config.warn_unclosed:
+                if get_config().warn_unclosed:
                     logger.warning(
                         f"Timer '{ctx.name}' was never closed. Auto close now."
                     )
@@ -167,11 +222,12 @@ class TimerStack:
     def reset(self) -> None:
         self.root_timers.clear()
         self.active_stack.clear()
+        self.timer_counts.clear()
 
     def _handle_error(self, message: str) -> None:
-        if _config.on_mismatch == ErrorHandling.WARN:
+        if get_config().on_mismatch == ErrorHandling.WARN:
             logger.warning(message)
-        elif _config.on_mismatch == ErrorHandling.RAISE:
+        elif get_config().on_mismatch == ErrorHandling.RAISE:
             raise ValueError(message)
         # else: pass
 
@@ -179,48 +235,125 @@ class TimerStack:
         """Export timing data as a dict"""
         return [root.to_dict() for root in self.root_timers.items()]
 
+    def get_timer_counts(self) -> Dict[str, int]:
+        """Get call counts for each timer name"""
+        return dict(self.timer_counts)
+
     def print_report(self) -> None:
-        """Print formatted timing report"""
+        """Print formatted timing report with aggregated statistics per timer"""
         print("\n" + "=" * 50)
         print("TIMING REPORT")
         print("=" * 50)
 
         def _convert_duration(duration: float) -> float:
-            if _config.time_unit == "seconds":
+            config = get_config()
+            if config.time_unit == "seconds":
                 return duration
-            elif _config.time_unit == "milliseconds":
+            elif config.time_unit == "milliseconds":
                 return duration * 1000
-            elif _config.time_unit == "microseconds":
+            elif config.time_unit == "microseconds":
                 return duration * 1000000
             else:
                 return duration * 1000  # default to milliseconds
 
         def _get_unit_suffix() -> str:
-            if _config.time_unit == "seconds":
+            config = get_config()
+            if config.time_unit == "seconds":
                 return "s"
-            elif _config.time_unit == "milliseconds":
+            elif config.time_unit == "milliseconds":
                 return "ms"
-            elif _config.time_unit == "microseconds":
+            elif config.time_unit == "microseconds":
                 return "μs"
             else:
                 return "ms"
 
-        def _print_timer(timer: Dict[str, Any], indent: int = 0) -> None:
-            prefix = "  " * indent
-            duration = _convert_duration(timer.get("duration", 0) or 0)
-            self_duration = _convert_duration(timer.get("self_duration", 0) or 0)
-            unit = _get_unit_suffix()
+        def _collect_all_timers(timers: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+            """Recursively collect all timers in a flat list"""
+            all_timers = []
+            for timer in timers:
+                all_timers.append(timer)
+                for child in timer.get("children", []):
+                    all_timers.extend(_collect_all_timers([child]))
+            return all_timers
 
+        # Collect all timers and group by name
+        all_timers = _collect_all_timers(self.get_stats())
+        timer_stats = {}  # name -> list of durations, self_durations
+
+        for timer in all_timers:
+            name = timer["name"]
+            duration = timer.get("duration")
+            self_duration = timer.get("self_duration")
+
+            if name not in timer_stats:
+                timer_stats[name] = {"durations": [], "self_durations": []}
+
+            if duration is not None:
+                timer_stats[name]["durations"].append(duration)
+            if self_duration is not None:
+                timer_stats[name]["self_durations"].append(self_duration)
+
+        if not timer_stats:
+            print("No timers recorded.")
+            print("=" * 50)
+            return
+
+        config = get_config()
+        unit = _get_unit_suffix()
+        precision = config.precision
+
+        # Print aggregated statistics for each timer
+        print(
+            f"{'Timer':<20} {'Count':<8} {'Total':<12} {'Avg':<12} {'Min':<12} {'Max':<12}"
+        )
+        print("-" * 84)
+
+        for name, stats in sorted(timer_stats.items()):
+            durations = stats["durations"]
+            self_durations = stats["self_durations"]
+
+            if durations:
+                total = sum(durations)
+                avg = total / len(durations)
+                min_time = min(durations)
+                max_time = max(durations)
+
+                total_str = f"{_convert_duration(total):.{precision}f}{unit}"
+                avg_str = f"{_convert_duration(avg):.{precision}f}{unit}"
+                min_str = f"{_convert_duration(min_time):.{precision}f}{unit}"
+                max_str = f"{_convert_duration(max_time):.{precision}f}{unit}"
+
+                print(
+                    f"{name:<20} {len(durations):<8} "
+                    f"{total_str:>12} {avg_str:>12} {min_str:>12} {max_str:>12}"
+                )
+
+        # Print self-time statistics if we have data
+        has_self_time = any(stats["self_durations"] for stats in timer_stats.values())
+        if has_self_time:
             print(
-                f"{prefix}- {timer['name']}: {duration:.{_config.precision}f}{unit} "
-                f"(self: {self_duration:.{_config.precision}f}{unit})"
+                f"\n{'Timer':<20} {'Count':<8} {'Self Total':<12} {'Self Avg':<12} {'Self Min':<12} {'Self Max':<12}"
             )
+            print("-" * 84)
 
-            for child in timer.get("children", []):
-                _print_timer(child, indent + 1)
+            for name, stats in sorted(timer_stats.items()):
+                self_durations = stats["self_durations"]
 
-        for root in self.get_stats():
-            _print_timer(root)
+                if self_durations:
+                    total_self = sum(self_durations)
+                    avg_self = total_self / len(self_durations)
+                    min_self = min(self_durations)
+                    max_self = max(self_durations)
+
+                    total_str = f"{_convert_duration(total_self):.{precision}f}{unit}"
+                    avg_str = f"{_convert_duration(avg_self):.{precision}f}{unit}"
+                    min_str = f"{_convert_duration(min_self):.{precision}f}{unit}"
+                    max_str = f"{_convert_duration(max_self):.{precision}f}{unit}"
+
+                    print(
+                        f"{name:<20} {len(self_durations):<8} "
+                        f"{total_str:>12} {avg_str:>12} {min_str:>12} {max_str:>12}"
+                    )
 
         print("=" * 50)
 
@@ -228,11 +361,21 @@ class TimerStack:
 class BoundedList:
     """A wrapper for list to use in TimerStack"""
 
-    def __init__(self):
+    def __init__(self, max_length: Optional[int] = None):
         self._data: List[TimerContext] = []
+        self._max_length = max_length or get_config().max_length
 
     def append(self, item: TimerContext) -> None:
         self._data.append(item)
+
+        if len(self._data) > self._max_length:
+            # Remove oldest items from the beginning
+            excess = len(self._data) - self._max_length
+            logger.warning(
+                f"BoundedList exceeded max length of {self._max_length}. "
+                f"Removing {excess} oldest item(s)."
+            )
+            del self._data[:excess]
 
     def pop(self) -> TimerContext:
         return self._data.pop()
