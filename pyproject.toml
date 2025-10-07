@@ -1,25 +1,52 @@
 [project]
 name = "timestack"
-version = "0.1.0"
-description = "Add your description here"
+dynamic = ["version"]
+description = "A powerful timing and performance measurement library for Python applications"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+keywords = ["timing", "performance", "profiling", "benchmarking", "measurement"]
+classifiers = [
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Software Development :: Testing",
+    "Topic :: System :: Monitoring",
+]
 dependencies = []
+
+[build-system]
+requires = ["hatchling", "uv-dynamic-versioning"]
+build-backend = "hatchling.build"
 
 [project.optional-dependencies]
 test = ["pytest>=7.0.0", "pytest-asyncio>=0.21.0"]
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-pythonpath = ["src"]
-asyncio_mode = "auto"
-
-[tool.uv.sources]
-timestack = { workspace = true }
 
 [dependency-groups]
 dev = [
     "pytest>=8.4.2",
     "pytest-asyncio>=1.2.0",
-    "timestack",
+    "ruff",
+    "pre-commit>=4.3.0",
+    "ipython",
+]
+
+[project.urls]
+Homepage = "https://github.com/tintty1/timestack"
+Repository = "https://github.com/tintty1/timestack"
+Documentation = "https://github.com/tintty1/timestack"
+
+[tool.hatch.version]
+source = "uv-dynamic-versioning"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+asyncio_mode = "auto"
+python_files = [
+    "test_*.py",
 ]
