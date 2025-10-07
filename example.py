@@ -2,21 +2,19 @@
 Comprehensive examples demonstrating the timestack library features.
 """
 
-import sys
-import os
-import time
 import asyncio
+import os
+import sys
+import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
 from timestack import (
-    Timer,
-    TimerConfig,
-    TimerStack,
     ErrorHandling,
+    Timer,
+    TimerStack,
     configure,
     get_config,
-    BoundedList,
 )
 
 
@@ -220,7 +218,7 @@ def example_6_bounded_list_behavior():
             time.sleep(0.001)
             print(f"   Completed operation_{i + 1}")
 
-    print(f"\nTotal root timers created: 5")
+    print("\nTotal root timers created: 5")
     print(f"Root timers kept (due to max_length): {len(stack.root_timers)}")
 
     kept_names = [timer.name for timer in stack.root_timers.items()]
@@ -324,7 +322,7 @@ def example_9_advanced_nested_scenarios():
                 with Timer("save_item"):
                     time.sleep(0.0003)
 
-        print(f"   Batch processing completed")
+        print("   Batch processing completed")
 
     # Process multiple batches
     for batch_id in range(3):
@@ -473,4 +471,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

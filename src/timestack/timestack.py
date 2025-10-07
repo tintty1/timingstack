@@ -1,13 +1,13 @@
-import time
 import asyncio
 import logging
+import threading
+import time
+from collections.abc import Callable
 from contextvars import ContextVar
-from typing import Optional, List, Any, Dict, Callable, TypeVar, cast
-from functools import wraps
 from dataclasses import dataclass, field
 from enum import Enum
-import threading
-
+from functools import wraps
+from typing import Any, Optional, TypeVar, cast
 
 logger = logging.getLogger("timestack")
 
@@ -35,7 +35,7 @@ class TimerConfig:
     max_length: int = 1000
 
 
-_config: Optional[TimerConfig] = None
+_config: TimerConfig | None = None
 _config_lock = threading.RLock()
 
 
@@ -79,9 +79,7 @@ def configure(**kwargs) -> None:
             enabled=kwargs.get("enabled", _config.enabled),
             on_mismatch=kwargs.get("on_mismatch", _config.on_mismatch),
             warn_unclosed=kwargs.get("warn_unclosed", _config.warn_unclosed),
-            auto_close_unclosed=kwargs.get(
-                "auto_close_unclosed", _config.auto_close_unclosed
-            ),
+            auto_close_unclosed=kwargs.get("auto_close_unclosed", _config.auto_close_unclosed),
             time_unit=kwargs.get("time_unit", _config.time_unit),
             precision=kwargs.get("precision", _config.precision),
             logger_name=kwargs.get("logger_name", _config.logger_name),
@@ -95,19 +93,19 @@ def configure(**kwargs) -> None:
 class TimerContext:
     name: str
     start_time: float
-    end_time: Optional[float] = None
+    end_time: float | None = None
     parent: Optional["TimerContext"] = None
-    children: List["TimerContext"] = field(default_factory=list)
+    children: list["TimerContext"] = field(default_factory=list)
 
     @property
-    def duration(self) -> Optional[float]:
+    def duration(self) -> float | None:
         """Total duration including children's durations"""
         if self.end_time is None:
             return None
         return self.end_time - self.start_time
 
     @property
-    def self_duration(self) -> Optional[float]:
+    def self_duration(self) -> float | None:
         """Duration of self, excluding children"""
         if self.duration is None:
             return None
@@ -118,7 +116,7 @@ class TimerContext:
         """Check if timer is complete"""
         return self.end_time is not None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dict"""
         return {
             "name": self.name,
@@ -137,9 +135,9 @@ class TimerStack:
         # Use bounded list for root timers to prevent memory leaks
         self.root_timers: BoundedList = BoundedList()
         # Use regular list for active stack to preserve timer hierarchy
-        self.active_stack: List[TimerContext] = []
+        self.active_stack: list[TimerContext] = []
         # Track timer call counts by name
-        self.timer_counts: Dict[str, int] = {}
+        self.timer_counts: dict[str, int] = {}
 
     def start(self, name: str) -> TimerContext:
         """Start a new timer."""
@@ -160,7 +158,7 @@ class TimerStack:
         self.active_stack.append(ctx)
         return ctx
 
-    def end(self, name: Optional[str] = None) -> Optional[TimerContext]:
+    def end(self, name: str | None = None) -> TimerContext | None:
         """
         End a timer
 
@@ -194,7 +192,8 @@ class TimerStack:
                         if not orphan.is_complete():
                             orphan.end_time = time.perf_counter()
                             logger.warning(
-                                f"Timer '{orphan.name}' was automatically closed bcs parent '{name}' has ended."
+                                f"Timer '{orphan.name}' was automatically closed "
+                                f"because parent '{name}' has ended."
                             )
                     # Remove orphaned timers
                     del self.active_stack[i:]
@@ -217,9 +216,7 @@ class TimerStack:
             if not ctx.is_complete():
                 ctx.end_time = current_time
                 if get_config().warn_unclosed:
-                    logger.warning(
-                        f"Timer '{ctx.name}' was never closed. Auto close now."
-                    )
+                    logger.warning(f"Timer '{ctx.name}' was never closed. Auto close now.")
         self.active_stack.clear()
 
     def reset(self) -> None:
@@ -234,11 +231,11 @@ class TimerStack:
             raise ValueError(message)
         # else: pass
 
-    def get_stats(self) -> List[Dict[str, Any]]:
+    def get_stats(self) -> list[dict[str, Any]]:
         """Export timing data as a dict"""
         return [root.to_dict() for root in self.root_timers.items()]
 
-    def get_timer_counts(self) -> Dict[str, int]:
+    def get_timer_counts(self) -> dict[str, int]:
         """Get call counts for each timer name"""
         return dict(self.timer_counts)
 
@@ -270,7 +267,7 @@ class TimerStack:
             else:
                 return "ms"
 
-        def _collect_all_timers(timers: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        def _collect_all_timers(timers: list[dict[str, Any]]) -> list[dict[str, Any]]:
             """Recursively collect all timers in a flat list"""
             all_timers = []
             for timer in timers:
@@ -306,9 +303,7 @@ class TimerStack:
         precision = config.precision
 
         # Print aggregated statistics for each timer
-        print(
-            f"{'Timer':<20} {'Count':<8} {'Total':<12} {'Avg':<12} {'Min':<12} {'Max':<12}"
-        )
+        print(f"{'Timer':<20} {'Count':<8} {'Total':<12} {'Avg':<12} {'Min':<12} {'Max':<12}")
         print("-" * 84)
 
         for name, stats in sorted(timer_stats.items()):
@@ -335,7 +330,8 @@ class TimerStack:
         has_self_time = any(stats["self_durations"] for stats in timer_stats.values())
         if has_self_time:
             print(
-                f"\n{'Timer':<20} {'Count':<8} {'Self Total':<12} {'Self Avg':<12} {'Self Min':<12} {'Self Max':<12}"
+                f"\n{'Timer':<20} {'Count':<8} {'Self Total':<12} "
+                f"{'Self Avg':<12} {'Self Min':<12} {'Self Max':<12}"
             )
             print("-" * 84)
 
@@ -364,8 +360,8 @@ class TimerStack:
 class BoundedList:
     """A wrapper for list to use in TimerStack"""
 
-    def __init__(self, max_length: Optional[int] = None):
-        self._data: List[TimerContext] = []
+    def __init__(self, max_length: int | None = None):
+        self._data: list[TimerContext] = []
         self._max_length = max_length or get_config().max_length
 
     def append(self, item: TimerContext) -> None:
@@ -402,11 +398,11 @@ class BoundedList:
     def clear(self) -> None:
         self._data.clear()
 
-    def items(self) -> List[TimerContext]:
+    def items(self) -> list[TimerContext]:
         return self._data
 
 
-_timer_stack: ContextVar[Optional[TimerStack]] = ContextVar("timer_stack", default=None)
+_timer_stack: ContextVar[TimerStack | None] = ContextVar("timer_stack", default=None)
 
 
 def _get_stack() -> TimerStack:
@@ -447,7 +443,7 @@ class Timer:
         Timer.end("task")
     """
 
-    def __init__(self, name: Optional[str] = None):
+    def __init__(self, name: str | None = None):
         """
         Init timer
 
@@ -455,7 +451,7 @@ class Timer:
             name: Timer name. If None and used as decorator, uses function name.
         """
         self.name = name
-        self._ctx: Optional[TimerContext] = None
+        self._ctx: TimerContext | None = None
 
     def __enter__(self) -> "Timer":
         if self.name is None:
@@ -500,7 +496,7 @@ class Timer:
             return cast(F, sync_wrapper)
 
     @staticmethod
-    def start(name: str) -> Optional[TimerContext]:
+    def start(name: str) -> TimerContext | None:
         """
         Start a timer manually.
 
@@ -517,7 +513,7 @@ class Timer:
         return stack.start(name)
 
     @staticmethod
-    def end(name: Optional[str] = None) -> Optional[TimerContext]:
+    def end(name: str | None = None) -> TimerContext | None:
         """
         End a timer manually
 
@@ -545,9 +541,7 @@ class Timer:
     def print_report() -> None:
         """Print formatted report for current context."""
         if not get_config().enabled:
-            print(
-                "TimeStack is currently disabled. Enable with configure(enabled=True)."
-            )
+            print("TimeStack is currently disabled. Enable with configure(enabled=True).")
             return
 
         stack = _get_stack()

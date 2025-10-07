@@ -1,13 +1,15 @@
-import pytest
 import asyncio
 import time
+
+import pytest
+
 from timestack import (
-    Timer,
-    TimerStack,
-    TimerContext,
-    TimerConfig,
-    ErrorHandling,
     BoundedList,
+    ErrorHandling,
+    Timer,
+    TimerConfig,
+    TimerContext,
+    TimerStack,
     configure,
     get_config,
 )
@@ -33,6 +35,7 @@ class TestBoundedList:
     def test_max_length_enforcement(self):
         # Reset global state first
         import timestack as ts
+
         ts._config = None
 
         # Test with small max length
@@ -62,6 +65,7 @@ class TestBoundedList:
     def test_custom_max_length(self):
         # Reset global state first
         import timestack as ts
+
         ts._config = None
 
         # Configure with higher global max length
@@ -82,6 +86,7 @@ class TestBoundedList:
     def test_multiple_excess_items(self):
         # Reset global state first
         import timestack as ts
+
         ts._config = None
 
         # Test with very small max length
@@ -103,6 +108,7 @@ class TestBoundedList:
     def test_max_length_config_update(self):
         # Reset global state first
         import timestack as ts
+
         ts._config = None
 
         # Start with initial max length
@@ -132,6 +138,7 @@ class TestBoundedList:
     def test_boundedlist_with_root_timers(self):
         # Reset global state first
         import timestack as ts
+
         ts._config = None
 
         # Test with small max length to verify root timer limiting
@@ -200,6 +207,7 @@ class TestTimerStack:
     def test_start_root_timer(self):
         # Reset global state first
         import timestack as ts
+
         ts._config = None
 
         stack = TimerStack()
@@ -213,6 +221,7 @@ class TestTimerStack:
     def test_start_nested_timer(self):
         # Reset global state first
         import timestack as ts
+
         ts._config = None
 
         stack = TimerStack()
@@ -226,6 +235,7 @@ class TestTimerStack:
     def test_end_most_recent_timer(self):
         # Reset global state first
         import timestack as ts
+
         ts._config = None
 
         stack = TimerStack()
@@ -242,6 +252,7 @@ class TestTimerStack:
     def test_end_named_timer(self):
         # Reset global state and configure with reasonable max length
         import timestack as ts
+
         ts._config = None
         configure(max_length=1000)
 
@@ -259,6 +270,7 @@ class TestTimerStack:
     def test_end_timer_closes_orphans(self):
         # Reset global state and configure with reasonable max length
         import timestack as ts
+
         ts._config = None
         configure(max_length=1000)
 
@@ -278,6 +290,7 @@ class TestTimerStack:
     def test_close_all(self):
         # Reset global state first
         import timestack as ts
+
         ts._config = None
 
         stack = TimerStack()
@@ -294,6 +307,7 @@ class TestTimerStack:
     def test_get_stats(self):
         # Reset global state first
         import timestack as ts
+
         ts._config = None
 
         stack = TimerStack()
@@ -309,6 +323,7 @@ class TestTimerStack:
     def test_timer_counts(self):
         # Reset global state first
         import timestack as ts
+
         ts._config = None
 
         stack = TimerStack()
@@ -338,6 +353,7 @@ class TestTimerStack:
     def test_print_report_with_stats(self):
         # Reset global state first
         import timestack as ts
+
         ts._config = None
 
         stack = TimerStack()
@@ -348,7 +364,7 @@ class TestTimerStack:
         stack.end("fast_timer")
 
         stack.start("slow_timer")
-        time.sleep(0.01)   # Longer sleep
+        time.sleep(0.01)  # Longer sleep
         stack.end("slow_timer")
 
         stack.start("nested_timer")
@@ -548,6 +564,7 @@ class TestConfiguration:
     def test_get_config_returns_default(self):
         # Reset global state first
         import timestack as ts
+
         ts._config = None
 
         config = get_config()
@@ -559,6 +576,7 @@ class TestConfiguration:
     def test_configure_updates_settings(self):
         # Reset global state first
         import timestack as ts
+
         ts._config = None
 
         # Test configuring multiple settings
@@ -568,7 +586,7 @@ class TestConfiguration:
             precision=4,
             warn_unclosed=False,
             on_mismatch=ErrorHandling.RAISE,
-            max_length=500
+            max_length=500,
         )
 
         config = get_config()
@@ -595,6 +613,7 @@ class TestConfiguration:
 
         # Reset global state first
         import timestack as ts
+
         ts._config = None
 
         results = []
@@ -698,4 +717,3 @@ class TestConfiguration:
 
 if __name__ == "__main__":
     pytest.main([__file__])
-

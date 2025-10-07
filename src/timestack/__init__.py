@@ -1,10 +1,10 @@
 from .timestack import (
+    BoundedList,
+    ErrorHandling,
     Timer,
     TimerConfig,
     TimerContext,
     TimerStack,
-    ErrorHandling,
-    BoundedList,
     configure,
     get_config,
 )
@@ -19,4 +19,3 @@ __all__ = [
     "configure",
     "get_config",
 ]
-
