@@ -377,7 +377,6 @@ class TestTimer:
         with Timer("test"):
             time.sleep(0.01)
 
-        stats = Timer.print_report
         # Should not raise exception
 
     def test_context_manager_requires_name(self):
@@ -429,6 +428,35 @@ class TestTimer:
         assert ctx.name == "manual_test"
         assert ctx.duration is not None and ctx.duration > 0
 
+    def test_timer_disabled_returns_none(self):
+        original_config = get_config()
+
+        try:
+            # Disable timers
+            configure(enabled=False)
+
+            # Timer.start should return None
+            ctx = Timer.start("disabled_timer")
+            assert ctx is None
+
+            # Timer.end should return None
+            ctx = Timer.end("disabled_timer")
+            assert ctx is None
+
+        finally:
+            # Restore original config
+            configure(
+                enabled=original_config.enabled,
+                on_mismatch=original_config.on_mismatch,
+                warn_unclosed=original_config.warn_unclosed,
+                auto_close_unclosed=original_config.auto_close_unclosed,
+                time_unit=original_config.time_unit,
+                precision=original_config.precision,
+                logger_name=original_config.logger_name,
+                log_level=original_config.log_level,
+                max_length=original_config.max_length,
+            )
+
     def test_reset(self):
         Timer.start("test1")
         Timer.start("test2")
@@ -437,6 +465,30 @@ class TestTimer:
         # Should be able to start fresh
         Timer.start("test3")
         Timer.end("test3")
+
+    def test_reset_when_disabled(self):
+        original_config = get_config()
+
+        try:
+            # Disable timers
+            configure(enabled=False)
+
+            # Should not raise exception
+            Timer.reset()
+
+        finally:
+            # Restore original config
+            configure(
+                enabled=original_config.enabled,
+                on_mismatch=original_config.on_mismatch,
+                warn_unclosed=original_config.warn_unclosed,
+                auto_close_unclosed=original_config.auto_close_unclosed,
+                time_unit=original_config.time_unit,
+                precision=original_config.precision,
+                logger_name=original_config.logger_name,
+                log_level=original_config.log_level,
+                max_length=original_config.max_length,
+            )
 
 
 class TestErrorHandling:
@@ -456,6 +508,7 @@ class TestErrorHandling:
         finally:
             # Restore original config
             configure(
+                enabled=original_config.enabled,
                 on_mismatch=original_config.on_mismatch,
                 warn_unclosed=original_config.warn_unclosed,
                 auto_close_unclosed=original_config.auto_close_unclosed,
@@ -484,6 +537,7 @@ class TestConfiguration:
     def test_timer_config_defaults(self):
         config = TimerConfig()
 
+        assert config.enabled is True
         assert config.on_mismatch == ErrorHandling.WARN
         assert config.warn_unclosed is True
         assert config.auto_close_unclosed is True
@@ -509,6 +563,7 @@ class TestConfiguration:
 
         # Test configuring multiple settings
         configure(
+            enabled=False,
             time_unit="seconds",
             precision=4,
             warn_unclosed=False,
@@ -517,6 +572,7 @@ class TestConfiguration:
         )
 
         config = get_config()
+        assert config.enabled is False
         assert config.time_unit == "seconds"
         assert config.precision == 4
         assert config.warn_unclosed is False
@@ -527,6 +583,7 @@ class TestConfiguration:
         configure(precision=1)
 
         config = get_config()
+        assert config.enabled is False  # Should remain unchanged
         assert config.time_unit == "seconds"  # Should remain unchanged
         assert config.precision == 1  # Should be updated
         assert config.warn_unclosed is False  # Should remain unchanged
@@ -535,7 +592,6 @@ class TestConfiguration:
 
     def test_configure_thread_safety(self):
         import threading
-        import time
 
         # Reset global state first
         import timestack as ts
@@ -590,6 +646,45 @@ class TestConfiguration:
         finally:
             # Restore original config
             configure(
+                enabled=original_config.enabled,
+                on_mismatch=original_config.on_mismatch,
+                warn_unclosed=original_config.warn_unclosed,
+                auto_close_unclosed=original_config.auto_close_unclosed,
+                time_unit=original_config.time_unit,
+                precision=original_config.precision,
+                logger_name=original_config.logger_name,
+                log_level=original_config.log_level,
+                max_length=original_config.max_length,
+            )
+
+    def test_print_report_when_disabled(self):
+        original_config = get_config()
+
+        try:
+            # Disable timers
+            configure(enabled=False)
+
+            # Should print disable message instead of report
+            # We'll capture stdout to verify the message
+            import io
+            import sys
+
+            captured_output = io.StringIO()
+            sys_stdout = sys.stdout
+            sys.stdout = captured_output
+
+            try:
+                Timer.print_report()
+                output = captured_output.getvalue()
+                assert "TimeStack is currently disabled" in output
+                assert "Enable with configure(enabled=True)" in output
+            finally:
+                sys.stdout = sys_stdout
+
+        finally:
+            # Restore original config
+            configure(
+                enabled=original_config.enabled,
                 on_mismatch=original_config.on_mismatch,
                 warn_unclosed=original_config.warn_unclosed,
                 auto_close_unclosed=original_config.auto_close_unclosed,

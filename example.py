@@ -367,6 +367,50 @@ def example_10_error_recovery_and_cleanup():
     Timer.print_report()
 
 
+def example_11_enable_disable_functionality():
+    """Example 11: Enable/disable functionality"""
+    print("\n" + "=" * 60)
+    print("Example 11: Enable/Disable Functionality")
+    print("=" * 60)
+
+    print("\n1. Running with timers ENABLED (default):")
+
+    # Enable timers explicitly
+    configure(enabled=True)
+
+    with Timer("enabled_operation"):
+        time.sleep(0.01)
+
+    Timer.print_report()
+
+    print("\n2. Running with timers DISABLED:")
+
+    # Disable timers
+    configure(enabled=False)
+
+    with Timer("disabled_operation"):
+        time.sleep(0.01)
+
+    # Try manual timer operations
+    Timer.start("manual_disabled")
+    time.sleep(0.01)
+    Timer.end("manual_disabled")
+
+    print("\n3. Trying to print report when disabled:")
+    Timer.print_report()
+
+    print("\n4. Re-enabling timers:")
+
+    # Re-enable timers
+    configure(enabled=True)
+
+    with Timer("re_enabled_operation"):
+        time.sleep(0.01)
+
+    print("\n5. Final report (should only show enabled operations):")
+    Timer.print_report()
+
+
 def main():
     """Run all examples"""
     print("TimeStack Library - Comprehensive Examples")
@@ -407,6 +451,9 @@ def main():
     Timer.reset()
     example_10_error_recovery_and_cleanup()
 
+    Timer.reset()
+    example_11_enable_disable_functionality()
+
     print("\n" + "=" * 60)
     print("All examples completed!")
     print("=" * 60)
@@ -421,6 +468,7 @@ def main():
     print("✓ Multiple independent timer stacks")
     print("✓ Advanced scenarios with loops and batch processing")
     print("✓ Error recovery and automatic cleanup")
+    print("✓ Global enable/disable functionality")
 
 
 if __name__ == "__main__":

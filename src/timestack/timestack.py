@@ -24,6 +24,7 @@ class ErrorHandling(Enum):
 class TimerConfig:
     """Global settings for all timers"""
 
+    enabled: bool = True
     on_mismatch: ErrorHandling = ErrorHandling.WARN
     warn_unclosed: bool = True
     auto_close_unclosed: bool = True
@@ -59,6 +60,7 @@ def configure(**kwargs) -> None:
 
     Args:
         **kwargs: Configuration options to update. Valid keys are:
+            - enabled: bool (whether timers are active)
             - on_mismatch: ErrorHandling enum value
             - warn_unclosed: bool
             - auto_close_unclosed: bool
@@ -74,6 +76,7 @@ def configure(**kwargs) -> None:
             _config = TimerConfig()
 
         new_config = TimerConfig(
+            enabled=kwargs.get("enabled", _config.enabled),
             on_mismatch=kwargs.get("on_mismatch", _config.on_mismatch),
             warn_unclosed=kwargs.get("warn_unclosed", _config.warn_unclosed),
             auto_close_unclosed=kwargs.get(
@@ -406,9 +409,6 @@ class BoundedList:
 _timer_stack: ContextVar[Optional[TimerStack]] = ContextVar("timer_stack", default=None)
 
 
-# TODO: verify if this is thread safe
-
-
 def _get_stack() -> TimerStack:
     """Get or create timer stack for current context"""
     stack = _timer_stack.get()
@@ -500,7 +500,7 @@ class Timer:
             return cast(F, sync_wrapper)
 
     @staticmethod
-    def start(name: str) -> TimerContext:
+    def start(name: str) -> Optional[TimerContext]:
         """
         Start a timer manually.
 
@@ -508,8 +508,11 @@ class Timer:
             name: Timer name
 
         Returns:
-            TimerContext for the started timer
+            TimerContext for the started timer, or None if disabled
         """
+        if not get_config().enabled:
+            return None
+
         stack = _get_stack()
         return stack.start(name)
 
@@ -524,18 +527,29 @@ class Timer:
         Returns:
             The ended TimerContext, or None if no match found
         """
+        if not get_config().enabled:
+            return None
+
         stack = _get_stack()
         return stack.end(name)
 
     @staticmethod
     def reset() -> None:
         """Reset all timing data in current context."""
+        if not get_config().enabled:
+            return
         stack = _get_stack()
         stack.reset()
 
     @staticmethod
     def print_report() -> None:
         """Print formatted report for current context."""
+        if not get_config().enabled:
+            print(
+                "TimeStack is currently disabled. Enable with configure(enabled=True)."
+            )
+            return
+
         stack = _get_stack()
         stack.print_report()
 
