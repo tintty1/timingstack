@@ -9,7 +9,7 @@ from enum import Enum
 from functools import wraps
 from typing import Any, Optional, TypeVar, cast
 
-logger = logging.getLogger("timestack")
+logger = logging.getLogger("timingstack")
 
 F = TypeVar("F", bound=Callable[..., Any])
 
@@ -30,7 +30,7 @@ class TimerConfig:
     auto_close_unclosed: bool = True
     time_unit: str = "milliseconds"
     precision: int = 2
-    logger_name: str = "timestack"
+    logger_name: str = "timingstack"
     log_level: str = "WARNING"
     max_length: int = 1000
 
@@ -541,7 +541,7 @@ class Timer:
     def print_report() -> None:
         """Print formatted report for current context."""
         if not get_config().enabled:
-            print("TimeStack is currently disabled. Enable with configure(enabled=True).")
+            print("TimingStack is currently disabled. Enable with configure(enabled=True).")
             return
 
         stack = _get_stack()

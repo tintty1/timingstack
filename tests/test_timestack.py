@@ -3,7 +3,7 @@ import time
 
 import pytest
 
-from timestack import (
+from timingstack import (
     BoundedList,
     ErrorHandling,
     Timer,
@@ -34,7 +34,7 @@ class TestBoundedList:
 
     def test_max_length_enforcement(self):
         # Reset global state first
-        import timestack as ts
+        import timingstack as ts
 
         ts._config = None
 
@@ -64,7 +64,7 @@ class TestBoundedList:
 
     def test_custom_max_length(self):
         # Reset global state first
-        import timestack as ts
+        import timingstack as ts
 
         ts._config = None
 
@@ -85,7 +85,7 @@ class TestBoundedList:
 
     def test_multiple_excess_items(self):
         # Reset global state first
-        import timestack as ts
+        import timingstack as ts
 
         ts._config = None
 
@@ -107,7 +107,7 @@ class TestBoundedList:
 
     def test_max_length_config_update(self):
         # Reset global state first
-        import timestack as ts
+        import timingstack as ts
 
         ts._config = None
 
@@ -137,7 +137,7 @@ class TestBoundedList:
 
     def test_boundedlist_with_root_timers(self):
         # Reset global state first
-        import timestack as ts
+        import timingstack as ts
 
         ts._config = None
 
@@ -206,7 +206,7 @@ class TestTimerContext:
 class TestTimerStack:
     def test_start_root_timer(self):
         # Reset global state first
-        import timestack as ts
+        import timingstack as ts
 
         ts._config = None
 
@@ -220,7 +220,7 @@ class TestTimerStack:
 
     def test_start_nested_timer(self):
         # Reset global state first
-        import timestack as ts
+        import timingstack as ts
 
         ts._config = None
 
@@ -234,7 +234,7 @@ class TestTimerStack:
 
     def test_end_most_recent_timer(self):
         # Reset global state first
-        import timestack as ts
+        import timingstack as ts
 
         ts._config = None
 
@@ -251,7 +251,7 @@ class TestTimerStack:
 
     def test_end_named_timer(self):
         # Reset global state and configure with reasonable max length
-        import timestack as ts
+        import timingstack as ts
 
         ts._config = None
         configure(max_length=1000)
@@ -269,7 +269,7 @@ class TestTimerStack:
 
     def test_end_timer_closes_orphans(self):
         # Reset global state and configure with reasonable max length
-        import timestack as ts
+        import timingstack as ts
 
         ts._config = None
         configure(max_length=1000)
@@ -289,7 +289,7 @@ class TestTimerStack:
 
     def test_close_all(self):
         # Reset global state first
-        import timestack as ts
+        import timingstack as ts
 
         ts._config = None
 
@@ -306,7 +306,7 @@ class TestTimerStack:
 
     def test_get_stats(self):
         # Reset global state first
-        import timestack as ts
+        import timingstack as ts
 
         ts._config = None
 
@@ -322,7 +322,7 @@ class TestTimerStack:
 
     def test_timer_counts(self):
         # Reset global state first
-        import timestack as ts
+        import timingstack as ts
 
         ts._config = None
 
@@ -352,7 +352,7 @@ class TestTimerStack:
 
     def test_print_report_with_stats(self):
         # Reset global state first
-        import timestack as ts
+        import timingstack as ts
 
         ts._config = None
 
@@ -563,7 +563,7 @@ class TestConfiguration:
 
     def test_get_config_returns_default(self):
         # Reset global state first
-        import timestack as ts
+        import timingstack as ts
 
         ts._config = None
 
@@ -575,7 +575,7 @@ class TestConfiguration:
 
     def test_configure_updates_settings(self):
         # Reset global state first
-        import timestack as ts
+        import timingstack as ts
 
         ts._config = None
 
@@ -612,7 +612,7 @@ class TestConfiguration:
         import threading
 
         # Reset global state first
-        import timestack as ts
+        import timingstack as ts
 
         ts._config = None
 
@@ -695,7 +695,7 @@ class TestConfiguration:
             try:
                 Timer.print_report()
                 output = captured_output.getvalue()
-                assert "TimeStack is currently disabled" in output
+                assert "TimingStack is currently disabled" in output
                 assert "Enable with configure(enabled=True)" in output
             finally:
                 sys.stdout = sys_stdout

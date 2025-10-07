@@ -1,10 +1,10 @@
-# TimeStack
+# TimingStack
 
 A simple yet powerful timing library for Python that helps you measure and analyze code performance with nested timer support.
 
-## Why TimeStack?
+## Why TimingStack?
 
-I built TimeStack because I needed something more than just basic timing functions. I wanted to:
+I built TimingStack because I needed something more than just basic timing functions. I wanted to:
 
 - Track nested operations and see how they relate to each other
 - Get aggregated statistics across multiple runs
@@ -26,7 +26,7 @@ I built TimeStack because I needed something more than just basic timing functio
 ## Installation
 
 ```bash
-pip install timestack
+pip install timingstack
 ```
 
 ## Quick Start
@@ -34,7 +34,7 @@ pip install timestack
 ### As a decorator (most common)
 
 ```python
-from timestack import Timer
+from timingstack import Timer
 
 @Timer.measure
 def process_data():
@@ -76,7 +76,7 @@ Timer.end("complex_operation")
 
 ## Nested Timers
 
-This is where TimeStack shines:
+This is where TimingStack shines:
 
 ```python
 @Timer.measure
@@ -107,10 +107,10 @@ Timer.print_report()
 
 ## Configuration
 
-Customize how TimeStack behaves:
+Customize how TimingStack behaves:
 
 ```python
-from timestack import configure, ErrorHandling
+from timingstack import configure, ErrorHandling
 
 # Show times in seconds with 6 decimal places
 configure(time_unit="seconds", precision=6)
@@ -130,7 +130,7 @@ configure(enabled=False)    # or True to re-enable
 Perfect for production environments where you want zero overhead:
 
 ```python
-from timestack import configure, Timer
+from timingstack import configure, Timer
 
 # Disable all timing (no performance overhead)
 configure(enabled=False)
@@ -148,10 +148,10 @@ configure(enabled=True)
 
 ## Error Handling
 
-TimeStack can handle timer mismatches in three ways:
+TimingStack can handle timer mismatches in three ways:
 
 ```python
-from timestack import configure, ErrorHandling
+from timingstack import configure, ErrorHandling
 
 # Warn about mismatches (default)
 configure(on_mismatch=ErrorHandling.WARN)
@@ -165,7 +165,7 @@ configure(on_mismatch=ErrorHandling.IGNORE)
 
 ## Memory Management
 
-TimeStack uses bounded lists to prevent memory leaks:
+TimingStack uses bounded lists to prevent memory leaks:
 
 ```python
 # Keep only the last 100 root timers
@@ -182,7 +182,7 @@ configure(max_length=100)
 Sometimes you need separate timing contexts:
 
 ```python
-from timestack import TimerStack
+from timingstack import TimerStack
 
 web_stack = TimerStack()
 bg_stack = TimerStack()
@@ -262,7 +262,7 @@ def get_user(user_id):
 
 ## That's It!
 
-TimeStack is designed to be simple to use but powerful enough for real-world performance analysis. Start with decorators, then explore nested timers and statistics as you need them.
+TimingStack is designed to be simple to use but powerful enough for real-world performance analysis. Start with decorators, then explore nested timers and statistics as you need them.
 
 If you run into issues or have ideas for improvements, feel free to open an issue or submit a pull request.
 

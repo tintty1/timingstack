@@ -1,5 +1,5 @@
 """
-Comprehensive examples demonstrating the timestack library features.
+Comprehensive examples demonstrating the timingstack library features.
 """
 
 import asyncio
@@ -9,7 +9,7 @@ import time
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
-from timestack import (
+from timingstack import (
     ErrorHandling,
     Timer,
     TimerStack,
@@ -411,9 +411,9 @@ def example_11_enable_disable_functionality():
 
 def main():
     """Run all examples"""
-    print("TimeStack Library - Comprehensive Examples")
+    print("TimingStack Library - Comprehensive Examples")
     print("=" * 60)
-    print("This demo showcases all the features of the timestack library")
+    print("This demo showcases all the features of the timingstack library")
     print("including timer counting, statistics, nested timers, and more.")
 
     # Reset configuration before examples

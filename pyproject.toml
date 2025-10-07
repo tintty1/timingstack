@@ -1,5 +1,5 @@
 [project]
-name = "timestack"
+name = "timingstack"
 dynamic = ["version"]
 description = "A powerful timing and performance measurement library for Python applications"
 readme = "README.md"
@@ -36,9 +36,9 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/tintty1/timestack"
-Repository = "https://github.com/tintty1/timestack"
-Documentation = "https://github.com/tintty1/timestack"
+Homepage = "https://github.com/tintty1/timingstack"
+Repository = "https://github.com/tintty1/timingstack"
+Documentation = "https://github.com/tintty1/timingstack"
 
 [tool.hatch.version]
 source = "uv-dynamic-versioning"
