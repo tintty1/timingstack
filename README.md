@@ -46,6 +46,35 @@ result = process_data()
 Timer.print_report()
 ```
 
+### Custom timer names
+
+You can specify custom names for your timers:
+
+```python
+# Using Timer.measure with custom name
+@Timer.measure("data_processing")
+def process_data():
+    return "processed"
+
+# Using Timer constructor directly
+@Timer("user_authentication")
+def authenticate_user():
+    return authenticate()
+
+# All three styles work the same
+@Timer.measure                # Uses function name: "my_function"
+def my_function():
+    pass
+
+@Timer.measure()              # Uses function name: "my_function"
+def my_function():
+    pass
+
+@Timer.measure("custom_name") # Uses custom name: "custom_name"
+def my_function():
+    pass
+```
+
 ### As a context manager
 
 ```python
@@ -57,7 +86,7 @@ with Timer("database_query"):
 ### With async code
 
 ```python
-@Timer.measure
+@Timer.measure("api_fetch")
 async def fetch_data():
     async with Timer("http_request"):
         response = await httpx.get("https://api.example.com")
@@ -79,7 +108,7 @@ Timer.end("complex_operation")
 This is where TimingStack shines:
 
 ```python
-@Timer.measure
+@Timer.measure("order_processing")
 def process_order():
     with Timer("validate_order"):
         validate(order_data)
@@ -250,7 +279,7 @@ def save_user(user_data):
 ### API Endpoints
 
 ```python
-@Timer.measure
+@Timer.measure("user_endpoint")
 @app.route("/api/users/<int:user_id>")
 def get_user(user_id):
     with Timer("database_lookup"):
@@ -265,4 +294,3 @@ def get_user(user_id):
 TimingStack is designed to be simple to use but powerful enough for real-world performance analysis. Start with decorators, then explore nested timers and statistics as you need them.
 
 If you run into issues or have ideas for improvements, feel free to open an issue or submit a pull request.
-

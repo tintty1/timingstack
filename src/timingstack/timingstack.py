@@ -548,14 +548,46 @@ class Timer:
         stack.print_report()
 
     @staticmethod
-    def measure(func: F) -> F:
+    def measure(name_or_func: str | F | None = None) -> F | Callable[[F], F]:
         """
         Decorator to measure function execution time
 
+        Usage:
+            @Timer.measure()
+            def my_function():
+                pass
+
+            @Timer.measure("custom_name")
+            def my_function():
+                pass
+
+            @Timer.measure  # no parentheses
+            def my_function():
+                pass
+
         Args:
-            func: Function to measure
+            name_or_func: Custom timer name, function to measure, or None.
+                         If None and used as @Timer.measure(), uses function name.
+                         If string, uses as custom name with @Timer.measure("name").
 
         Returns:
-            Wrapped function
+            Wrapped function or decorator
         """
-        return Timer(func.__name__)(func)
+        if isinstance(name_or_func, str):
+            # Called with custom name: @Timer.measure("custom_name")
+            custom_name = name_or_func
+
+            def decorator(func: F) -> F:
+                return Timer(custom_name)(func)
+
+            return decorator
+        elif callable(name_or_func):
+            # Called directly with function: @Timer.measure
+            func = cast(F, name_or_func)
+            return Timer(func.__name__)(func)
+        else:
+            # Called with no args: @Timer.measure()
+            def decorator(func: F) -> F:
+                return Timer(func.__name__)(func)
+
+            return decorator

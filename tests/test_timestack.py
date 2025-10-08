@@ -435,6 +435,51 @@ class TestTimer:
         result = test_func()
         assert result == "result"
 
+    def test_measure_decorator_no_parentheses(self):
+        @Timer.measure
+        def test_func():
+            return "result"
+
+        result = test_func()
+        assert result == "result"
+
+    def test_measure_decorator_with_parentheses(self):
+        @Timer.measure()
+        def test_func():
+            return "result"
+
+        result = test_func()
+        assert result == "result"
+
+    def test_measure_decorator_with_custom_name(self):
+        @Timer.measure("my_custom_timer_name")
+        def test_func():
+            return "result"
+
+        result = test_func()
+        assert result == "result"
+
+    def test_measure_decorator_async_with_custom_name(self):
+        @Timer.measure("async_custom_name")
+        async def test_async_func():
+            await asyncio.sleep(0.01)
+            return "async_result"
+
+        result = asyncio.run(test_async_func())
+        assert result == "async_result"
+
+    def test_measure_decorator_nested_custom_names(self):
+        @Timer.measure("outer_timer")
+        def outer_function():
+            @Timer.measure("inner_timer")
+            def inner_function():
+                return "inner_result"
+
+            return inner_function()
+
+        result = outer_function()
+        assert result == "inner_result"
+
     def test_manual_start_end(self):
         Timer.start("manual_test")
         time.sleep(0.01)
