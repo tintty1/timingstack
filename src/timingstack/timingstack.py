@@ -543,7 +543,7 @@ class Timer:
         if not get_config().enabled:
             return
         stack = _get_stack()
-        stack.get_stats()
+        return stack.get_stats()
 
     @staticmethod
     def print_report() -> None:
