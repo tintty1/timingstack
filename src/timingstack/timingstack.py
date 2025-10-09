@@ -538,6 +538,14 @@ class Timer:
         stack.reset()
 
     @staticmethod
+    def collect_stats() -> None | list[dict[str, Any]]:
+        """Collect stats."""
+        if not get_config().enabled:
+            return
+        stack = _get_stack()
+        stack.get_stats()
+
+    @staticmethod
     def print_report() -> None:
         """Print formatted report for current context."""
         if not get_config().enabled:
