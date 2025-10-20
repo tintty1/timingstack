@@ -17,11 +17,13 @@ I built TimingStack because I needed something more than just basic timing funct
 - **Multiple usage patterns**: Decorator, context manager, or manual start/stop
 - **Async/await support**: Works with both sync and async code
 - **Nested timers**: Track parent-child relationships between operations
-- **Aggregated statistics**: See counts, totals, averages, min/max for each timer
+- **Rich statistics**: See counts, totals, averages, min/max, and self-time analysis
 - **Memory safe**: Uses bounded lists to prevent memory leaks
-- **Configurable**: Adjust time units, precision, and error handling
+- **Configurable**: Adjust time units, precision, error handling, and reporters
 - **Global disable**: Turn off all timing for zero production overhead
 - **Thread-safe**: Works in multi-threaded environments
+- **Pluggable reporters**: Support for custom output formats via TimerReporter protocol
+- **Programmatic access**: Get timing data as dictionaries for custom processing
 
 ## Installation
 
@@ -128,10 +130,30 @@ When you run this, you'll see how long each step took AND how much time was spen
 
 ## Statistics and Reporting
 
-Get a statistical report with:
+Get timing statistics with:
 
 ```python
 Timer.print_report()
+```
+
+### Custom Reporters
+
+TimingStack supports pluggable reporters for different output formats:
+
+```python
+from timingstack import TimerReporter, configure
+
+# Use the default console reporter (included)
+# configure(reporter=ConsoleTimerReporter())
+
+# Create custom reporters by implementing the TimerReporter protocol
+class MyCustomReporter:
+    def generate_report(self, timer_stats, timer_counts, config):
+        # Custom reporting logic
+        pass
+
+# Set custom reporter
+# configure(reporter=MyCustomReporter())
 ```
 
 ## Configuration
@@ -152,6 +174,9 @@ configure(max_length=1000)  # Keep only 1000 root timers
 
 # Disable timers (useful for production)
 configure(enabled=False)    # or True to re-enable
+
+# Set custom reporter
+configure(reporter=ConsoleTimerReporter())  # or None to disable reporting
 ```
 
 ## Enable/Disable Timers
@@ -225,16 +250,21 @@ web_stack.print_report()
 bg_stack.print_report()
 ```
 
-### Timer Counts
+### Timer Counts and Statistics
 
-See how many times each timer was called:
+Access timing data programmatically:
 
 ```python
 stack = TimerStack()
 # ... run some timers ...
 
+# Get call counts for each timer name
 counts = stack.get_timer_counts()
 # {'http_request': 15, 'database_query': 8, 'validation': 45}
+
+# Get detailed timing statistics
+stats = Timer.collect_stats()
+# Returns list of timer dictionaries with full hierarchy
 ```
 
 ## Examples
@@ -291,6 +321,30 @@ def get_user(user_id):
 
 ## That's It!
 
-TimingStack is designed to be simple to use but powerful enough for real-world performance analysis. Start with decorators, then explore nested timers and statistics as you need them.
+TimingStack is designed to be simple to use but powerful enough for real-world performance analysis. Start with decorators, then explore nested timers, custom reporters, and programmatic access as you need them.
+
+## API Reference
+
+### Core Classes
+
+- **`Timer`**: Main timer class supporting decorators, context managers, and manual timing
+- **`TimerStack`**: Container for managing timer hierarchies and statistics
+- **`TimerConfig`**: Configuration object for global timer settings
+- **`TimerContext`**: Represents a single timer execution with start/end times
+
+### Reporting Classes
+
+- **`TimerReporter`**: Protocol for implementing custom reporters
+- **`ConsoleTimerReporter`**: Default console-based reporter implementation
+- **`TimeUnit`**: Enum for supported time units (seconds, milliseconds, microseconds)
+
+### Configuration
+
+- **`configure(**kwargs)`\*\*: Update global timer configuration
+- **`get_config()`**: Get current global configuration
+
+### Enums
+
+- **`ErrorHandling`**: Options for handling timer mismatches (WARN, RAISE, IGNORE)
 
 If you run into issues or have ideas for improvements, feel free to open an issue or submit a pull request.
