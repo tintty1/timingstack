@@ -7,7 +7,10 @@ from contextvars import ContextVar
 from dataclasses import dataclass, field
 from enum import Enum
 from functools import wraps
-from typing import Any, Optional, TypeVar, cast
+from typing import TYPE_CHECKING, Any, Optional, TypeVar, cast, overload
+
+if TYPE_CHECKING:
+    from .reporting import TimerReporter
 
 logger = logging.getLogger("timingstack")
 
@@ -33,6 +36,7 @@ class TimerConfig:
     logger_name: str = "timingstack"
     log_level: str = "WARNING"
     max_length: int = 1000
+    reporter: Optional["TimerReporter"] = None
 
 
 _config: TimerConfig | None = None
@@ -50,7 +54,9 @@ def get_config() -> TimerConfig:
     if _config is None:
         with _config_lock:
             if _config is None:
-                _config = TimerConfig()
+                from .reporting import ConsoleTimerReporter
+
+                _config = TimerConfig(reporter=ConsoleTimerReporter())
     return _config
 
 
@@ -69,22 +75,29 @@ def configure(**kwargs) -> None:
             - logger_name: str
             - log_level: str
             - max_length: int (maximum number of items in bounded lists)
+            - reporter: TimerReporter implementation (set to None to disable reporting)
     """
     global _config
     with _config_lock:
-        if _config is None:
-            _config = TimerConfig()
+        current_config = get_config()
+
+        reporter = current_config.reporter
+        if "reporter" in kwargs and kwargs["reporter"] is None:
+            reporter = None
 
         new_config = TimerConfig(
-            enabled=kwargs.get("enabled", _config.enabled),
-            on_mismatch=kwargs.get("on_mismatch", _config.on_mismatch),
-            warn_unclosed=kwargs.get("warn_unclosed", _config.warn_unclosed),
-            auto_close_unclosed=kwargs.get("auto_close_unclosed", _config.auto_close_unclosed),
-            time_unit=kwargs.get("time_unit", _config.time_unit),
-            precision=kwargs.get("precision", _config.precision),
-            logger_name=kwargs.get("logger_name", _config.logger_name),
-            log_level=kwargs.get("log_level", _config.log_level),
-            max_length=kwargs.get("max_length", _config.max_length),
+            enabled=kwargs.get("enabled", current_config.enabled),
+            on_mismatch=kwargs.get("on_mismatch", current_config.on_mismatch),
+            warn_unclosed=kwargs.get("warn_unclosed", current_config.warn_unclosed),
+            auto_close_unclosed=kwargs.get(
+                "auto_close_unclosed", current_config.auto_close_unclosed
+            ),
+            time_unit=kwargs.get("time_unit", current_config.time_unit),
+            precision=kwargs.get("precision", current_config.precision),
+            logger_name=kwargs.get("logger_name", current_config.logger_name),
+            log_level=kwargs.get("log_level", current_config.log_level),
+            max_length=kwargs.get("max_length", current_config.max_length),
+            reporter=reporter,
         )
         _config = new_config
 
@@ -132,8 +145,9 @@ class TimerStack:
     """Manage the stack of active timers"""
 
     def __init__(self):
+        max_length = get_config().max_length
         # Use bounded list for root timers to prevent memory leaks
-        self.root_timers: BoundedList = BoundedList()
+        self.root_timers: BoundedList = BoundedList(max_length=max_length)
         # Use regular list for active stack to preserve timer hierarchy
         self.active_stack: list[TimerContext] = []
         # Track timer call counts by name
@@ -240,32 +254,23 @@ class TimerStack:
         return dict(self.timer_counts)
 
     def print_report(self) -> None:
-        """Print formatted timing report with aggregated statistics per timer"""
-        print("\n" + "=" * 50)
-        print("TIMING REPORT")
-        print("=" * 50)
+        """Generate timing report using the configured reporter"""
+        config = get_config()
+        timer_stats = self._collect_timer_stats()
 
-        def _convert_duration(duration: float) -> float:
-            config = get_config()
-            if config.time_unit == "seconds":
-                return duration
-            elif config.time_unit == "milliseconds":
-                return duration * 1000
-            elif config.time_unit == "microseconds":
-                return duration * 1000000
-            else:
-                return duration * 1000  # default to milliseconds
+        # Check if reporter is None and warn user
+        if config.reporter is None:
+            logger.warning(
+                "Timer reporter is set to None. No report will be generated. "
+                "Set a reporter using configure(reporter=YourReporterClass())."
+            )
+            return
 
-        def _get_unit_suffix() -> str:
-            config = get_config()
-            if config.time_unit == "seconds":
-                return "s"
-            elif config.time_unit == "milliseconds":
-                return "ms"
-            elif config.time_unit == "microseconds":
-                return "μs"
-            else:
-                return "ms"
+        # Use injected reporter for output
+        config.reporter.generate_report(timer_stats, self.get_timer_counts(), config)
+
+    def _collect_timer_stats(self) -> dict[str, dict[str, list[float]]]:
+        """Collect and aggregate timer statistics"""
 
         def _collect_all_timers(timers: list[dict[str, Any]]) -> list[dict[str, Any]]:
             """Recursively collect all timers in a flat list"""
@@ -293,68 +298,7 @@ class TimerStack:
             if self_duration is not None:
                 timer_stats[name]["self_durations"].append(self_duration)
 
-        if not timer_stats:
-            print("No timers recorded.")
-            print("=" * 50)
-            return
-
-        config = get_config()
-        unit = _get_unit_suffix()
-        precision = config.precision
-
-        # Print aggregated statistics for each timer
-        print(f"{'Timer':<20} {'Count':<8} {'Total':<12} {'Avg':<12} {'Min':<12} {'Max':<12}")
-        print("-" * 84)
-
-        for name, stats in sorted(timer_stats.items()):
-            durations = stats["durations"]
-            self_durations = stats["self_durations"]
-
-            if durations:
-                total = sum(durations)
-                avg = total / len(durations)
-                min_time = min(durations)
-                max_time = max(durations)
-
-                total_str = f"{_convert_duration(total):.{precision}f}{unit}"
-                avg_str = f"{_convert_duration(avg):.{precision}f}{unit}"
-                min_str = f"{_convert_duration(min_time):.{precision}f}{unit}"
-                max_str = f"{_convert_duration(max_time):.{precision}f}{unit}"
-
-                print(
-                    f"{name:<20} {len(durations):<8} "
-                    f"{total_str:>12} {avg_str:>12} {min_str:>12} {max_str:>12}"
-                )
-
-        # Print self-time statistics if we have data
-        has_self_time = any(stats["self_durations"] for stats in timer_stats.values())
-        if has_self_time:
-            print(
-                f"\n{'Timer':<20} {'Count':<8} {'Self Total':<12} "
-                f"{'Self Avg':<12} {'Self Min':<12} {'Self Max':<12}"
-            )
-            print("-" * 84)
-
-            for name, stats in sorted(timer_stats.items()):
-                self_durations = stats["self_durations"]
-
-                if self_durations:
-                    total_self = sum(self_durations)
-                    avg_self = total_self / len(self_durations)
-                    min_self = min(self_durations)
-                    max_self = max(self_durations)
-
-                    total_str = f"{_convert_duration(total_self):.{precision}f}{unit}"
-                    avg_str = f"{_convert_duration(avg_self):.{precision}f}{unit}"
-                    min_str = f"{_convert_duration(min_self):.{precision}f}{unit}"
-                    max_str = f"{_convert_duration(max_self):.{precision}f}{unit}"
-
-                    print(
-                        f"{name:<20} {len(self_durations):<8} "
-                        f"{total_str:>12} {avg_str:>12} {min_str:>12} {max_str:>12}"
-                    )
-
-        print("=" * 50)
+        return timer_stats
 
 
 class BoundedList:
@@ -554,6 +498,45 @@ class Timer:
 
         stack = _get_stack()
         stack.print_report()
+
+    @staticmethod
+    @overload
+    def measure(name_or_func: None = None) -> Callable[[F], F]:
+        """
+        Decorator to measure function execution time - no args version.
+
+        Usage:
+            @Timer.measure()
+            def my_function():
+                pass
+        """
+        ...
+
+    @staticmethod
+    @overload
+    def measure(name_or_func: str) -> Callable[[F], F]:
+        """
+        Decorator to measure function execution time - with custom name.
+
+        Usage:
+            @Timer.measure("custom_name")
+            def my_function():
+                pass
+        """
+        ...
+
+    @staticmethod
+    @overload
+    def measure(name_or_func: F) -> F:
+        """
+        Decorator to measure function execution time - direct function version.
+
+        Usage:
+            @Timer.measure  # no parentheses
+            def my_function():
+                pass
+        """
+        ...
 
     @staticmethod
     def measure(name_or_func: str | F | None = None) -> F | Callable[[F], F]:
